@@ -24,46 +24,6 @@ export default function Home() {
     listEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages.length]);
 
-  // Live updates from Hedera testnet via SSE when topicId is set
-  useEffect(() => {
-    if (!topicId) return;
-    const url = `/api/stream?topicId=${encodeURIComponent(topicId)}`;
-    const es = new EventSource(url);
-
-    es.onmessage = (ev) => {
-      try {
-        const data = JSON.parse(ev.data);
-        if (data?.type === 'message') {
-          const content = String(data.content || '');
-          setMessages((m) => [
-            ...m,
-            {
-              id: crypto.randomUUID(),
-              role: 'system',
-              content: `📡 New topic message (#${data.sequenceNumber ?? '?'}): ${content}`,
-              timestamp: Date.now(),
-            },
-          ]);
-        } else if (data?.type === 'error') {
-          setMessages((m) => [
-            ...m,
-            { id: crypto.randomUUID(), role: 'system', content: `SSE error: ${data.error}`, timestamp: Date.now() },
-          ]);
-        }
-      } catch (e) {
-        // ignore parse errors
-      }
-    };
-
-    es.onerror = () => {
-      // Let browser reconnect automatically; optional: show transient note
-    };
-
-    return () => {
-      es.close();
-    };
-  }, [topicId]);
-
   const canSend = useMemo(() => !!topicId && input.trim().length > 0, [topicId, input]);
 
   const send = async () => {
@@ -173,7 +133,7 @@ export default function Home() {
             {messages.map((m) => (
               <div key={m.id} className={`msg ${m.role}`}>
                 <div className="meta">{m.role}</div>
-                <div>{m.content}</div>
+                {m.role === 'assistant' ? <pre>{m.content}</pre> : <div>{m.content}</div>}
               </div>
             ))}
             <div ref={listEndRef} />
