@@ -1,21 +1,150 @@
 import { NextRequest } from 'next/server'
-import { TopicMessageSubmitTransaction } from '@hashgraph/sdk'
-import OpenAI from 'openai'
-import { getClient } from '../../utils/hedera'
+import { OpenAIHederaIntegration } from '../../utils/openai-hedera-integration'
 import { deepSanitize, sanitizeText } from '../../utils/pii'
+import { 
+  Client, 
+  AccountId, 
+  PrivateKey, 
+  AccountCreateTransaction, 
+  Hbar,
+  TokenCreateTransaction,
+  TransferTransaction,
+  CustomFixedFee,
+  TopicCreateTransaction,
+  TopicMessageSubmitTransaction
+} from '@hashgraph/sdk'
+import { getClient } from '../../utils/hedera'
+
+/**
+ * Creates a new Hedera account with initial HBAR balance
+ */
+async function createFeePayerAccount(client: Client) {
+  console.log('Creating new fee payer account...')
+  
+  // Create a new ECDSA private key
+  const privateKey = PrivateKey.generateECDSA()
+
+  // Create a new account with initial balance
+  const accountCreateTx = new AccountCreateTransaction()
+    .setECDSAKeyWithAlias(privateKey)
+    .setInitialBalance(new Hbar(20))
+    .setMaxAutomaticTokenAssociations(-1) // Unlimited token associations
+
+  const accountCreateTxResponse = await accountCreateTx.execute(client)
+  const accountCreateReceipt = await accountCreateTxResponse.getReceipt(client)
+  const newAccountId = accountCreateReceipt.accountId
+
+  console.log(`Created fee payer account: ${newAccountId}`)
+
+  return {
+    accountId: newAccountId,
+    privateKey: privateKey,
+  }
+}
+
+/**
+ * Creates a mock fee token (USDC-like)
+ */
+async function createFeeToken(client: Client) {
+  console.log('Creating mock fee token...')
+  
+  const tokenCreateTx = new TokenCreateTransaction()
+    .setTokenName('AMOCA Fee Token')
+    .setTokenSymbol('AFT')
+    .setTreasuryAccountId(client.operatorAccountId)
+    .setInitialSupply(10000) // Larger initial supply
+
+  const executeTx = await tokenCreateTx.execute(client)
+  const txReceipt = await executeTx.getReceipt(client)
+  const tokenId = txReceipt.tokenId
+
+  console.log(`Fee token created: ${tokenId}`)
+  return tokenId
+}
+
+/**
+ * Transfers tokens between accounts
+ */
+async function transferFeeTokens(client: Client, tokenId: any, fromAccountId: any, toAccountId: any, amount: number) {
+  console.log(`Transferring ${amount} tokens to ${toAccountId}...`)
+  
+  const transferTx = new TransferTransaction()
+    .addTokenTransfer(tokenId, fromAccountId, -amount)
+    .addTokenTransfer(tokenId, toAccountId, amount)
+
+  const executeTx = await transferTx.execute(client)
+  await executeTx.getReceipt(client)
+  
+  console.log(`Successfully transferred ${amount} tokens`)
+}
+
+/**
+ * Creates a topic with custom fees
+ */
+async function createTopicWithFees(client: Client, feeTokenId: any, feeAmount: number = 5) {
+  console.log('Creating topic with custom fees...')
+  
+  const customFee = new CustomFixedFee()
+    .setDenominatingTokenId(feeTokenId)
+    .setAmount(feeAmount)
+    .setFeeCollectorAccountId(client.operatorAccountId)
+
+  const topicCreateTx = new TopicCreateTransaction()
+    .setCustomFees([customFee])
+
+  const executeTopicCreateTx = await topicCreateTx.execute(client)
+  const topicCreateReceipt = await executeTopicCreateTx.getReceipt(client)
+  const topicId = topicCreateReceipt.topicId
+
+  console.log(`Topic created with custom fees: ${topicId}`)
+  console.log(`Fee structure: ${feeAmount} ${feeTokenId} tokens per message`)
+
+  return topicId
+}
+
+/**
+ * Submits message with fee payment from specific account
+ */
+async function submitMessageWithFee(
+  feePayerAccountId: any, 
+  feePayerPrivateKey: PrivateKey, 
+  topicId: any, 
+  message: string
+) {
+  console.log('Submitting message with fee payment...')
+  
+  // Create new client with fee payer credentials
+  const feePayerClient = Client.forTestnet().setOperator(feePayerAccountId, feePayerPrivateKey)
+
+  const submitMessageTx = new TopicMessageSubmitTransaction()
+    .setTopicId(topicId)
+    .setMessage(message)
+
+  const executeSubmitMessageTx = await submitMessageTx.execute(feePayerClient)
+  const submitMessageReceipt = await executeSubmitMessageTx.getReceipt(feePayerClient)
+  const transactionId = executeSubmitMessageTx.transactionId?.toString()
+
+  console.log('Message submitted successfully with fee payment')
+  console.log(`Transaction status: ${submitMessageReceipt.status}`)
+  console.log(`Transaction ID: ${transactionId}`)
+
+  return {
+    status: String(submitMessageReceipt.status),
+    transactionId: transactionId || '',
+    topicId: String(topicId)
+  }
+}
 
 // Ensure Node.js runtime (not Edge) due to SDKs and environment usage
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
-// Note: This route runs on the server. It uses OPERATOR_ADDRESS/OPERATOR_KEY from env at the app root.
-
 export async function POST(req: NextRequest) {
   try {
     console.log('Processing POST request to submit route...')
+    console.log('==============================================')
     
-    // The payload now includes the conversation history and current state
     const { topicId: rawTopicId, payload } = await req.json()
     const { consent, data, user, collected_data, conversation_history } = payload
 
@@ -25,8 +154,18 @@ export async function POST(req: NextRequest) {
       return new Response(JSON.stringify({ status: 'CONSENT_MISSING', consent: false }), { status: 200 })
     }
 
-    console.log('Initializing OpenAI client...')
-    const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
+    const openaiApiKey = process.env.OPENAI_API_KEY
+    if (!openaiApiKey) {
+      throw new Error('OpenAI API key not configured')
+    }
+
+    // Step 1: Initialize Hedera client
+    console.log('Step 1: Initializing Hedera client...')
+    const client = await getClient()
+
+    // Step 2: Initialize the OpenAI-Hedera integration utility
+    const integration = new OpenAIHederaIntegration(openaiApiKey)
+    await integration.initializeHedera()
 
     const systemPrompt = `You are AMOCA, a friendly and meticulous conversational AI assistant. Your purpose is to guide a user through the process of providing their healthcare data for an observational study on dandelion root usage in cancer patients.
 
@@ -57,93 +196,117 @@ Your entire output MUST be personal and empathetic message when the data collect
 }
 \`\`\`
 
-**Conversation Flow & Rules:**
--   **Start:** If \`collected_data\` is empty, start with a welcoming message and ask the first question (e.g., about cancer type and diagnosis date).
--   **Continue:** Based on the user's last message and the existing \`collected_data\`, fill in the JSON and ask the next logical question. For example, after getting the cancer type, ask about the stage.
--   **Be Clear:** Frame your questions clearly. Example: "Thanks. Next, could you tell me about your surgery, if you had one? What type was it and when did it take place?"
--   **Handle "I don't know":** If the user doesn't know or doesn't want to answer, acknowledge it and move to the next topic. Set the corresponding field to \`null\`.
--   **Completion & Rewards:** When all fields are reasonably filled, set the status to "COMPLETE". Your final message in \`next_question\` should be a warm, human-readable summary and thank you. It MUST mention that high-quality data contributions can earn AMOCA rewards. For example: "Thank you so much for taking the time to share your journey with me. Your willingness to provide this information is a truly valuable gift to researchers and fellow patients. Every detail you've shared helps paint a clearer picture for the study. We believe in the power of shared knowledge, and contributions like yours are the key to unlocking new insights. As a token of our appreciation, high-quality and verifiable data sets like the one you've provided are eligible for AMOCA rewards. Your information is now being securely submitted to the research database. We are deeply grateful for your partnership in this important work."
--   **PII:** Do not ask for or store names, emails, or exact addresses. Remind the user not to share PII.
-
 **Current State:**
 -   User: anonymous
 -   Data collected so far: ${JSON.stringify(collected_data, null, 2)}
 -   Conversation History: ${JSON.stringify(conversation_history, null, 2)}
 `
 
-  // Sanitize personal data from the incoming free-text before sending to OpenAI
-  const userContent = sanitizeText(data ?? '')
+    // Sanitize personal data from the incoming free-text before sending to OpenAI
+    const userContent = sanitizeText(data ?? '')
 
-    console.log('Sending request to OpenAI API...')
-    const completion = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
-      temperature: 0.5,
-      response_format: { type: 'json_object' },
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userContent }
-      ]
-    })
-
-    const responseText = completion.choices?.[0]?.message?.content || '{}'
-    console.log('Received response from OpenAI API')
-    
-    const aiResponse = JSON.parse(responseText)
-
-    // If the AI says the data collection is complete, submit it to Hedera.
-    if (aiResponse.status === 'COMPLETE') {
-      console.log('Data collection complete, submitting to Hedera...')
-      
-      const topicId = rawTopicId || process.env.NEXT_PUBLIC_DEFAULT_TOPIC_ID
-      if (!topicId) {
-        console.error('Hedera Topic ID is not configured!')
-        throw new Error('Hedera Topic ID is not configured!')
+    // Step 3: Get OpenAI response
+    console.log('Step 3: Getting OpenAI response...')
+    const aiResponse = await integration.getOpenAIResponse(
+      systemPrompt,
+      userContent,
+      {
+        model: 'gpt-4o-mini',
+        temperature: 0.5,
+        responseFormat: 'json_object'
       }
+    )
 
+    // Step 4: If the AI says the data collection is complete, implement full Hedera workflow
+    if (aiResponse.status === 'COMPLETE') {
+      console.log('Step 4: Data collection complete, implementing full Hedera workflow...')
+      
       try {
-        console.log(`Getting Hedera client for topic: ${topicId}`)
-        const client = await getClient()
-        
-        // Deep-sanitize any remnants in collected_data before persisting to Hedera
+        // Step 4a: Create fee payer account
+        const feePayerAccount = await createFeePayerAccount(client)
+        console.log(`Fee payer account created: ${feePayerAccount.accountId}`)
+
+        // Step 4b: Create fee token
+        const feeTokenId = await createFeeToken(client)
+        console.log(`Fee token created: ${feeTokenId}`)
+
+        // Step 4c: Transfer tokens to fee payer
+        await transferFeeTokens(client, feeTokenId, client.operatorAccountId, feePayerAccount.accountId, 100)
+        console.log('Transferred 100 tokens to fee payer account')
+
+        // Step 4d: Create topic with custom fees (or use existing one)
+        let topicId = rawTopicId
+        if (!topicId) {
+          topicId = await createTopicWithFees(client, feeTokenId, 5)
+          console.log(`New topic created with fees: ${topicId}`)
+        } else {
+          console.log(`Using existing topic: ${topicId}`)
+        }
+
+        // Step 4e: Prepare final payload with sanitized data
         const finalPayload = deepSanitize({
           consent: true,
           timestamp: new Date().toISOString(),
+          session_id: `amoca_${Date.now()}`,
+          user_type: 'anonymous',
+          data_collection_complete: true,
+          ai_conversation: {
+            total_interactions: (conversation_history?.length || 0) + 1,
+            completion_status: aiResponse.status
+          },
           ...aiResponse.collected_data,
         })
 
-        console.log('Submitting message to Hedera topic...')
-        const submitMessageTx = new TopicMessageSubmitTransaction()
-          .setTopicId(topicId)
-          .setMessage(JSON.stringify(finalPayload))
+        console.log('Final payload prepared and sanitized')
 
-        const executeSubmitMessageTx = await submitMessageTx.execute(client)
-        const receipt = await executeSubmitMessageTx.getReceipt(client)
-        const transactionId = executeSubmitMessageTx.transactionId?.toString()
+        // Step 4f: Submit message using fee payer account
+        const hederaResult = await submitMessageWithFee(
+          feePayerAccount.accountId,
+          feePayerAccount.privateKey,
+          topicId,
+          JSON.stringify(finalPayload)
+        )
 
-        console.log(`Message submitted successfully to topic ${topicId}`)
-        console.log(`Transaction status: ${receipt.status}`)
-        console.log(`Transaction ID: ${transactionId}`)
+        console.log('==============================================')
+        console.log('WORKFLOW COMPLETED SUCCESSFULLY!')
+        console.log(`Topic: ${hederaResult.topicId}`)
+        console.log(`Transaction: ${hederaResult.transactionId}`)
+        console.log(`Fee payer: ${feePayerAccount.accountId}`)
+        console.log(`Fee token: ${feeTokenId}`)
+        console.log('==============================================')
 
-        // Return the final confirmation including the transaction ID
+        // Return the final confirmation with full workflow details
         return new Response(
           JSON.stringify({
             ...aiResponse,
-            hedera_status: String(receipt.status),
-            transactionId,
-            topicId,
+            hedera_status: hederaResult.status,
+            transactionId: hederaResult.transactionId,
+            topicId: hederaResult.topicId,
+            workflow_details: {
+              fee_payer_account: String(feePayerAccount.accountId),
+              fee_token: String(feeTokenId),
+              tokens_transferred: 100,
+              fee_per_message: 5,
+              workflow_complete: true
+            },
             latestResponse: aiResponse,
           }),
           { status: 200 }
         )
       } catch (hederaError: any) {
-        console.error('Error submitting message to Hedera:', hederaError.message)
+        console.error('Error in Hedera workflow:', hederaError.message)
+        console.error('Full error:', hederaError)
         
-        // Still return the AI response but indicate Hedera submission failed
+        // Still return the AI response but indicate Hedera workflow failed
         return new Response(
           JSON.stringify({
             ...aiResponse,
             hedera_status: 'ERROR',
             hedera_error: hederaError.message,
+            workflow_details: {
+              workflow_complete: false,
+              error_stage: 'hedera_workflow'
+            },
             latestResponse: aiResponse,
           }),
           { status: 200 }
@@ -154,11 +317,27 @@ Your entire output MUST be personal and empathetic message when the data collect
     // If the conversation is still in progress, just return the AI's response.
     console.log('Conversation still in progress, returning AI response')
     return new Response(
-      JSON.stringify({ latestResponse: aiResponse }),
+      JSON.stringify({ 
+        latestResponse: aiResponse,
+        workflow_details: {
+          workflow_complete: false,
+          status: 'in_progress'
+        }
+      }),
       { status: 200 }
     )
   } catch (e: any) {
     console.error('Error in submit route:', e.message || 'Unknown error')
-    return new Response(JSON.stringify({ error: e.message || 'Unknown error' }), { status: 500 })
+    console.error('Full error:', e)
+    return new Response(
+      JSON.stringify({ 
+        error: e.message || 'Unknown error',
+        workflow_details: {
+          workflow_complete: false,
+          error_stage: 'initialization'
+        }
+      }), 
+      { status: 500 }
+    )
   }
 }

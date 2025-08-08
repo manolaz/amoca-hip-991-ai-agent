@@ -1,5 +1,7 @@
 import { NextRequest } from 'next/server'
-import { OpenAIHederaIntegration } from '../../utils/openai-hedera-integration'
+import { TopicMessageSubmitTransaction } from '@hashgraph/sdk'
+import OpenAI from 'openai'
+import { getClient } from '../../utils/hedera'
 import { deepSanitize, sanitizeText } from '../../utils/pii'
 
 // Ensure Node.js runtime (not Edge) due to SDKs and environment usage
@@ -7,10 +9,13 @@ export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
+// Note: This route runs on the server. It uses OPERATOR_ADDRESS/OPERATOR_KEY from env at the app root.
+
 export async function POST(req: NextRequest) {
   try {
     console.log('Processing POST request to submit route...')
     
+    // The payload now includes the conversation history and current state
     const { topicId: rawTopicId, payload } = await req.json()
     const { consent, data, user, collected_data, conversation_history } = payload
 
@@ -20,13 +25,8 @@ export async function POST(req: NextRequest) {
       return new Response(JSON.stringify({ status: 'CONSENT_MISSING', consent: false }), { status: 200 })
     }
 
-    const openaiApiKey = process.env.OPENAI_API_KEY
-    if (!openaiApiKey) {
-      throw new Error('OpenAI API key not configured')
-    }
-
-    // Initialize the integration utility
-    const integration = new OpenAIHederaIntegration(openaiApiKey)
+    console.log('Initializing OpenAI client...')
+    const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
 
     const systemPrompt = `You are AMOCA, a friendly and meticulous conversational AI assistant. Your purpose is to guide a user through the process of providing their healthcare data for an observational study on dandelion root usage in cancer patients.
 
@@ -57,25 +57,38 @@ Your entire output MUST be personal and empathetic message when the data collect
 }
 \`\`\`
 
+**Conversation Flow & Rules:**
+-   **Start:** If \`collected_data\` is empty, start with a welcoming message and ask the first question (e.g., about cancer type and diagnosis date).
+-   **Continue:** Based on the user's last message and the existing \`collected_data\`, fill in the JSON and ask the next logical question. For example, after getting the cancer type, ask about the stage.
+-   **Be Clear:** Frame your questions clearly. Example: "Thanks. Next, could you tell me about your surgery, if you had one? What type was it and when did it take place?"
+-   **Handle "I don't know":** If the user doesn't know or doesn't want to answer, acknowledge it and move to the next topic. Set the corresponding field to \`null\`.
+-   **Completion & Rewards:** When all fields are reasonably filled, set the status to "COMPLETE". Your final message in \`next_question\` should be a warm, human-readable summary and thank you. It MUST mention that high-quality data contributions can earn AMOCA rewards. For example: "Thank you so much for taking the time to share your journey with me. Your willingness to provide this information is a truly valuable gift to researchers and fellow patients. Every detail you've shared helps paint a clearer picture for the study. We believe in the power of shared knowledge, and contributions like yours are the key to unlocking new insights. As a token of our appreciation, high-quality and verifiable data sets like the one you've provided are eligible for AMOCA rewards. Your information is now being securely submitted to the research database. We are deeply grateful for your partnership in this important work."
+-   **PII:** Do not ask for or store names, emails, or exact addresses. Remind the user not to share PII.
+
 **Current State:**
 -   User: anonymous
 -   Data collected so far: ${JSON.stringify(collected_data, null, 2)}
 -   Conversation History: ${JSON.stringify(conversation_history, null, 2)}
 `
 
-    // Sanitize personal data from the incoming free-text before sending to OpenAI
-    const userContent = sanitizeText(data ?? '')
+  // Sanitize personal data from the incoming free-text before sending to OpenAI
+  const userContent = sanitizeText(data ?? '')
 
-    // Get OpenAI response
-    const aiResponse = await integration.getOpenAIResponse(
-      systemPrompt,
-      userContent,
-      {
-        model: 'gpt-4o-mini',
-        temperature: 0.5,
-        responseFormat: 'json_object'
-      }
-    )
+    console.log('Sending request to OpenAI API...')
+    const completion = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      temperature: 0.5,
+      response_format: { type: 'json_object' },
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userContent }
+      ]
+    })
+
+    const responseText = completion.choices?.[0]?.message?.content || '{}'
+    console.log('Received response from OpenAI API')
+    
+    const aiResponse = JSON.parse(responseText)
 
     // If the AI says the data collection is complete, submit it to Hedera.
     if (aiResponse.status === 'COMPLETE') {
@@ -88,6 +101,9 @@ Your entire output MUST be personal and empathetic message when the data collect
       }
 
       try {
+        console.log(`Getting Hedera client for topic: ${topicId}`)
+        const client = await getClient()
+        
         // Deep-sanitize any remnants in collected_data before persisting to Hedera
         const finalPayload = deepSanitize({
           consent: true,
@@ -95,19 +111,26 @@ Your entire output MUST be personal and empathetic message when the data collect
           ...aiResponse.collected_data,
         })
 
-        const hederaResult = await integration.submitToHederaTopic(
-          topicId,
-          finalPayload,
-          { addTimestamp: false } // We already added timestamp
-        )
+        console.log('Submitting message to Hedera topic...')
+        const submitMessageTx = new TopicMessageSubmitTransaction()
+          .setTopicId(topicId)
+          .setMessage(JSON.stringify(finalPayload))
+
+        const executeSubmitMessageTx = await submitMessageTx.execute(client)
+        const receipt = await executeSubmitMessageTx.getReceipt(client)
+        const transactionId = executeSubmitMessageTx.transactionId?.toString()
+
+        console.log(`Message submitted successfully to topic ${topicId}`)
+        console.log(`Transaction status: ${receipt.status}`)
+        console.log(`Transaction ID: ${transactionId}`)
 
         // Return the final confirmation including the transaction ID
         return new Response(
           JSON.stringify({
             ...aiResponse,
-            hedera_status: hederaResult.status,
-            transactionId: hederaResult.transactionId,
-            topicId: hederaResult.topicId,
+            hedera_status: String(receipt.status),
+            transactionId,
+            topicId,
             latestResponse: aiResponse,
           }),
           { status: 200 }
