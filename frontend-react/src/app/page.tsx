@@ -11,7 +11,7 @@ type ChatMsg = {
 };
 
 export default function Home() {
-  const [topicId, setTopicId] = useState<string>("");
+  const [topicId, setTopicId] = useState<string>(process.env.NEXT_PUBLIC_DEFAULT_TOPIC_ID || '0.0.6531943');
   const [consent, setConsent] = useState<boolean>(false);
   const [input, setInput] = useState<string>("");
   const [busy, setBusy] = useState<boolean>(false);
@@ -21,6 +21,46 @@ export default function Home() {
   useEffect(() => {
     listEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages.length]);
+
+  // Live updates from Hedera testnet via SSE when topicId is set
+  useEffect(() => {
+    if (!topicId) return;
+    const url = `/api/stream?topicId=${encodeURIComponent(topicId)}`;
+    const es = new EventSource(url);
+
+    es.onmessage = (ev) => {
+      try {
+        const data = JSON.parse(ev.data);
+        if (data?.type === 'message') {
+          const content = String(data.content || '');
+          setMessages((m) => [
+            ...m,
+            {
+              id: crypto.randomUUID(),
+              role: 'system',
+              content: `📡 New topic message (#${data.sequenceNumber ?? '?'}): ${content}`,
+              timestamp: Date.now(),
+            },
+          ]);
+        } else if (data?.type === 'error') {
+          setMessages((m) => [
+            ...m,
+            { id: crypto.randomUUID(), role: 'system', content: `SSE error: ${data.error}`, timestamp: Date.now() },
+          ]);
+        }
+      } catch (e) {
+        // ignore parse errors
+      }
+    };
+
+    es.onerror = () => {
+      // Let browser reconnect automatically; optional: show transient note
+    };
+
+    return () => {
+      es.close();
+    };
+  }, [topicId]);
 
   const canSend = useMemo(() => !!topicId && input.trim().length > 0, [topicId, input]);
 
@@ -75,6 +115,10 @@ export default function Home() {
   return (
     <div className="container">
       <div className="stack">
+        <div className="brand-hero">
+          <div className="brand-word">AMOCA</div>
+          <div className="brand-tagline">Healthcare data · consent-aware · standardized with love 💖</div>
+        </div>
         <div className="card soft">
           <div className="pill">🩺 AMOCA · Healthcare Data on Hedera</div>
           <h1 className="title">Share, Validate, Standardize ✨</h1>
@@ -92,7 +136,7 @@ export default function Home() {
               <span className="label">📬 Hedera Topic ID</span>
               <input
                 className="input"
-                placeholder="0.0.xxxxx"
+                placeholder="0.0.6531943"
                 value={topicId}
                 onChange={(e) => setTopicId(e.target.value)}
               />

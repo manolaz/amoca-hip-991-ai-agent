@@ -44,8 +44,9 @@ async function getClient() {
 
 export async function POST(req: NextRequest) {
   try {
-    const { topicId, payload } = await req.json()
-    if (!topicId) return new Response(JSON.stringify({ error: 'topicId is required' }), { status: 400 })
+  const { topicId: rawTopicId, payload } = await req.json()
+  const topicId = rawTopicId || process.env.NEXT_PUBLIC_DEFAULT_TOPIC_ID || '0.0.6531943'
+  if (!topicId) return new Response(JSON.stringify({ error: 'topicId is required' }), { status: 400 })
     if (!payload) return new Response(JSON.stringify({ error: 'payload is required' }), { status: 400 })
 
     const client = await getClient()

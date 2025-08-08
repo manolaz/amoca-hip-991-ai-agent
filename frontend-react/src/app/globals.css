@@ -42,11 +42,20 @@ body {
   font-display: swap;
 }
 
+/* Local font: monof55 (for body text) */
+@font-face {
+  font-family: 'monof55';
+  src: url('../../assets/fonts/monof55.ttf') format('truetype');
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+}
+
 body {
   color: var(--foreground);
   background: linear-gradient(180deg, #fffefd 0%, #fff8f6 100%);
-  /* Use Aerolite for general text */
-  font-family: 'Aerolite', ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+  /* Use monof55 for general text */
+  font-family: 'monof55', 'Aerolite', ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -272,4 +281,35 @@ pre {
   white-space: pre-wrap;
   word-wrap: break-word;
   word-break: break-all;
+}
+
+/* Brand hero */
+.brand-hero {
+  text-align: center;
+  padding: 28px 16px;
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  background: linear-gradient(135deg, var(--accent-sky), var(--accent-rose));
+  box-shadow: var(--shadow);
+}
+
+.brand-word {
+  font-family: 'Bellerose', 'Aerolite', ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  font-size: clamp(56px, 12vw, 160px);
+  line-height: 0.9;
+  background: linear-gradient(90deg, #a48bff 0%, #ff9ec5 50%, #8ee7b1 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  color: transparent;
+  text-shadow: 0 2px 0 rgba(255, 255, 255, 0.6);
+}
+
+.brand-tagline {
+  margin-top: 8px;
+  color: var(--foreground);
+  opacity: 0.8;
+  font-size: clamp(14px, 2.6vw, 20px);
 }
