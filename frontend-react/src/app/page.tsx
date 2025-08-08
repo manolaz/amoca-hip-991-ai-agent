@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useMemo, useRef, useState } from 'react';
+import AmocaInstructions from '@/components/AmocaInstructions';
 
 type ChatMsg = {
   id: string;
@@ -76,6 +77,8 @@ export default function Home() {
       <p style={{ color: '#666' }}>
         Share health data to a Hedera Topic for community discussion. Your consent is required. An AI agent validates trustworthiness and produces a standardized summary.
       </p>
+
+  <AmocaInstructions />
 
       <div style={{ display: 'grid', gap: 12, marginTop: 12 }}>
         <label style={{ display: 'grid', gap: 6 }}>
