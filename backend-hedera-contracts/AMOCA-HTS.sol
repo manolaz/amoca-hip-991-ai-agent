@@ -349,4 +349,51 @@ contract HTSContract is HederaTokenService, ExpiryHelper, KeyHelper, FeeHelper {
 
         emit CreatedToken(tokenAddress);
     }
+
+    function tokenAirdrop(address token, address sender, address receiver, int64 amount) public payable returns (int64 responseCode) {
+        IHederaTokenService.TokenTransferList[] memory tokenTransfers = new IHederaTokenService.TokenTransferList[](1);
+        IHederaTokenService.TokenTransferList memory airdrop;
+
+        airdrop.token = token;
+        airdrop.transfers = createAccountTransferPair(sender, receiver, amount);
+        tokenTransfers[0] = airdrop;
+        responseCode = airdropTokens(tokenTransfers);
+        if (responseCode != HederaResponseCodes.SUCCESS) {
+            revert();
+        }
+        return responseCode;
+    }
+
+    function createAccountTransferPair(address sender, address receiver, int64 amount) internal pure returns (IHederaTokenService.AccountAmount[] memory transfers) {
+        IHederaTokenService.AccountAmount memory aa1;
+        aa1.accountID = sender;
+        aa1.amount = -amount;
+        IHederaTokenService.AccountAmount memory aa2;
+        aa2.accountID = receiver;
+        aa2.amount = amount;
+        transfers = new IHederaTokenService.AccountAmount[](2);
+        transfers[0] = aa1;
+        transfers[1] = aa2;
+        return transfers;
+    }
+
+    function claimMultipleAirdrops(address[] memory senders, address[] memory receivers, address[] memory tokens, int64[] memory serials) public returns (int64 responseCode) {
+        uint length = senders.length;
+        IHederaTokenService.PendingAirdrop[] memory pendingAirdrops = new IHederaTokenService.PendingAirdrop[](length);
+        for (uint i = 0; i < length; i++) {
+            IHederaTokenService.PendingAirdrop memory pendingAirdrop;
+            pendingAirdrop.sender = senders[i];
+            pendingAirdrop.receiver = receivers[i];
+            pendingAirdrop.token = tokens[i];
+            pendingAirdrop.serial = serials[i];
+
+            pendingAirdrops[i] = pendingAirdrop;
+        }
+
+        responseCode = claimAirdrops(pendingAirdrops);
+        if (responseCode != HederaResponseCodes.SUCCESS) {
+            revert();
+        }
+        return responseCode;
+    }
 }
