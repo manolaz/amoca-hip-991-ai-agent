@@ -1,6 +1,8 @@
 'use client'
 
 import React from 'react'
+import Image from 'next/image'
+import dde from '../../assets/images/dde.png'
 
 export default function DandelionsMedicine() {
   return (
@@ -13,8 +15,22 @@ export default function DandelionsMedicine() {
         background: '#fffef8'
       }}
     >
-      <h3 style={{ marginTop: 0 }}>Dandelion Cancer Research - Patient Records</h3>
-      <h4 style={{ margin: '4px 0 8px' }}>Alternative Medicine Study: Dandelion Extract for Multiple Cancer Types</h4>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8 }}>
+        <div style={{ flex: '0 0 120px', display: 'flex', justifyContent: 'center' }}>
+          <Image
+            src={dde}
+            alt="Dandelion illustration"
+            style={{ borderRadius: 12, objectFit: 'cover' }}
+            width={120}
+            height={120}
+            priority
+          />
+        </div>
+        <div style={{ flex: 1 }}>
+          <h3 style={{ marginTop: 0 }}>Dandelion Cancer Research - Patient Records</h3>
+          <h4 style={{ margin: '4px 0 8px' }}>Alternative Medicine Study: Dandelion Extract for Multiple Cancer Types</h4>
+        </div>
+      </div>
       <div style={{ fontSize: 14 }}>
         <p style={{ margin: 0 }}>🌿 <b>Research Context</b></p>
         <p style={{ margin: '6px 0' }}>
