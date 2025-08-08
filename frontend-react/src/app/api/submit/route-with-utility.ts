@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server'
-import { OpenAIHederaIntegration } from '../../../../../../../utils/openai-hedera-integration'
+import { OpenAIHederaIntegration } from '../../utils/openai-hedera-integration'
 import { deepSanitize, sanitizeText } from '../../utils/pii'
 
 // Ensure Node.js runtime (not Edge) due to SDKs and environment usage
