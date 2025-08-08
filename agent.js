@@ -51,7 +51,8 @@ const main = async () => {
 3.  **Trust Assessment:** While standardizing, assess the provided data for trustworthiness (coherence, plausibility).
 
 **Output JSON Schema:**
-Your output MUST be a single, valid JSON object. Strive to populate as much of the following structure as possible. If a piece of information is not available in the input text, omit the corresponding key or set its value to \`null\`.
+
+Your entire output MUST be ersonal and empathetic message when the data collection is complete. This will make the interaction feel more human-focused, with a single, valid JSON object with the following structure.
 
 \`\`\`json
 {
