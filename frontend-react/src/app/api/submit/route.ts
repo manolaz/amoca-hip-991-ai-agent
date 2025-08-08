@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server'
 import { TopicMessageSubmitTransaction } from '@hashgraph/sdk'
 import OpenAI from 'openai'
 import { getClient } from '../../utils/hedera'
+import { deepSanitize, sanitizeText } from '../../utils/pii'
 
 // Ensure Node.js runtime (not Edge) due to SDKs and environment usage
 export const runtime = 'nodejs'
@@ -65,7 +66,8 @@ Your entire output MUST be ersonal and empathetic message when the data collecti
 -   Conversation History: ${JSON.stringify(conversation_history, null, 2)}
 `
 
-    const userContent = data ?? ''
+  // Sanitize personal data from the incoming free-text before sending to OpenAI
+  const userContent = sanitizeText(data ?? '')
 
     const completion = await openai.chat.completions.create({
       model: 'gpt-4o-mini',
@@ -78,7 +80,7 @@ Your entire output MUST be ersonal and empathetic message when the data collecti
     })
 
     const responseText = completion.choices?.[0]?.message?.content || '{}'
-    const aiResponse = JSON.parse(responseText)
+  const aiResponse = JSON.parse(responseText)
 
     // If the AI says the data collection is complete, submit it to Hedera.
     if (aiResponse.status === 'COMPLETE') {
@@ -86,10 +88,11 @@ Your entire output MUST be ersonal and empathetic message when the data collecti
       if (!topicId) throw new Error('Hedera Topic ID is not configured!')
 
       const client = await getClient()
-      const finalPayload = {
+      // Deep-sanitize any remnants in collected_data before persisting to Hedera
+      const finalPayload = deepSanitize({
         consent: true,
-        ...aiResponse.collected_data
-      }
+        ...aiResponse.collected_data,
+      })
 
       const tx = await new TopicMessageSubmitTransaction()
         .setTopicId(topicId)
@@ -104,14 +107,18 @@ Your entire output MUST be ersonal and empathetic message when the data collecti
         JSON.stringify({
           ...aiResponse,
           hedera_status: String(receipt.status),
-          transactionId
+          transactionId,
+          latestResponse: aiResponse,
         }),
         { status: 200 }
       )
     }
 
     // If the conversation is still in progress, just return the AI's response.
-    return new Response(JSON.stringify(aiResponse), { status: 200 })
+    return new Response(
+      JSON.stringify({ latestResponse: aiResponse }),
+      { status: 200 }
+    )
   } catch (e: any) {
     return new Response(JSON.stringify({ error: e.message || 'Unknown error' }), { status: 500 })
   }
