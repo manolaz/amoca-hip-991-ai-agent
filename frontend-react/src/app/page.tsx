@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useMemo, useRef, useState } from 'react';
 import AmocaInstructions from '@/components/AmocaInstructions';
+import DandelionsMedicine from '@/components/DandelionsMedicine';
 
 type ChatMsg = {
   id: string;
@@ -72,59 +73,64 @@ export default function Home() {
   };
 
   return (
-    <div style={{ maxWidth: 900, margin: '0 auto', padding: 16 }}>
-      <h1>AMOCA · Healthcare Data Contribution on Hedera</h1>
-      <p style={{ color: '#666' }}>
-        Share health data to a Hedera Topic for community discussion. Your consent is required. An AI agent validates trustworthiness and produces a standardized summary.
-      </p>
+    <div className="container">
+      <div className="stack">
+        <div className="card soft">
+          <div className="pill">🩺 AMOCA · Healthcare Data on Hedera</div>
+          <h1 className="title">Share, Validate, Standardize ✨</h1>
+          <p className="subtitle">
+            Contribute health data to a Hedera Topic. We’ll verify consent, assess trust, and provide a clean summary (no PII).
+          </p>
+        </div>
 
   <AmocaInstructions />
+  <DandelionsMedicine />
 
-      <div style={{ display: 'grid', gap: 12, marginTop: 12 }}>
-        <label style={{ display: 'grid', gap: 6 }}>
-          <span>Hedera Topic ID</span>
-          <input
-            placeholder="0.0.xxxxx"
-            value={topicId}
-            onChange={(e) => setTopicId(e.target.value)}
-            style={{ padding: 8, border: '1px solid #ccc', borderRadius: 8 }}
-          />
-        </label>
-        <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} />
-          <span>I consent to share my health data to the specified Hedera Topic for validation and standardization.</span>
-        </label>
-        <label style={{ display: 'grid', gap: 6 }}>
-          <span>Your message (health data, symptoms, notes)</span>
-          <textarea
-            rows={5}
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            placeholder="e.g., Age 45, type 2 diabetes, recent HbA1c 7.8%. On metformin."
-            style={{ padding: 10, border: '1px solid #ccc', borderRadius: 8 }}
-          />
-        </label>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <button disabled={!canSend || busy} onClick={send} style={{ padding: '8px 14px', borderRadius: 8 }}>
-            {busy ? 'Sending…' : 'Send to Topic'}
-          </button>
-        </div>
-      </div>
-
-      <div style={{ marginTop: 24, borderTop: '1px solid #eee', paddingTop: 16 }}>
-        <h3>Chat</h3>
-        <div style={{ display: 'grid', gap: 8 }}>
-          {messages.map((m) => (
-            <div key={m.id} style={{
-              padding: 10,
-              borderRadius: 8,
-              background: m.role === 'user' ? '#e6f4ff' : '#f5f5f5'
-            }}>
-              <div style={{ fontSize: 12, color: '#888' }}>{m.role}</div>
-              <div>{m.content}</div>
+        <div className="card">
+          <div className="form-grid">
+            <label className="stack">
+              <span className="label">📬 Hedera Topic ID</span>
+              <input
+                className="input"
+                placeholder="0.0.xxxxx"
+                value={topicId}
+                onChange={(e) => setTopicId(e.target.value)}
+              />
+            </label>
+            <label className="inline">
+              <input className="checkbox" type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} />
+              <span>✅ I consent to share my data for validation and standardization.</span>
+            </label>
+            <label className="stack">
+              <span className="label">📝 Your message (health data, symptoms, notes)</span>
+              <textarea
+                className="textarea"
+                rows={5}
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                placeholder="e.g., Age 45, type 2 diabetes, recent HbA1c 7.8%. On metformin."
+              />
+            </label>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button className="btn btn-primary" disabled={!canSend || busy} onClick={send}>
+                {busy ? 'Sending…' : 'Send to Topic ✈️'}
+              </button>
             </div>
-          ))}
-          <div ref={listEndRef} />
+          </div>
+        </div>
+
+        <div className="card soft" style={{ marginTop: 12 }}>
+          <h3>💬 Chat</h3>
+          <div className="spacer-sm" />
+          <div className="chat">
+            {messages.map((m) => (
+              <div key={m.id} className={`msg ${m.role}`}>
+                <div className="meta">{m.role}</div>
+                <div>{m.content}</div>
+              </div>
+            ))}
+            <div ref={listEndRef} />
+          </div>
         </div>
       </div>
     </div>
