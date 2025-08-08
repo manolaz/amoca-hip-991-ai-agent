@@ -47,6 +47,49 @@ export async function getClient(): Promise<Client> {
   return client;
 }
 
+export async function checkTopicMessage(topicId: string, transactionId: string): Promise<boolean> {
+  return new Promise(async (resolve, reject) => {
+    const client = await getClient();
+    let subscription;
+    const timeout = setTimeout(() => {
+      if (subscription) {
+        subscription.unsubscribe();
+      }
+      console.warn(`Timeout waiting for message with transaction ID ${transactionId}`);
+      resolve(false); // Resolve with false on timeout
+    }, 10000); // 10-second timeout
+
+    try {
+      subscription = new TopicMessageQuery()
+        .setTopicId(topicId)
+        .setStartTime(0) // Start from the beginning of the topic
+        .subscribe(
+          client,
+          (error) => {
+            console.error('Error subscribing to topic:', error);
+            clearTimeout(timeout);
+            reject(error);
+          },
+          (message) => {
+            // The transactionId on the message is the parent transactionId of the HCS submit message
+            // It may not be what you are looking for if you need the child transaction id.
+            // Here we assume we are checking against the transactionId of the TopicMessageSubmitTransaction
+            if (message.transactionId?.toString() === transactionId) {
+              clearTimeout(timeout);
+              if (subscription) {
+                subscription.unsubscribe();
+              }
+              resolve(true);
+            }
+          }
+        );
+    } catch (error) {
+      clearTimeout(timeout);
+      reject(error);
+    }
+  });
+}
+
 export async function getTopicMessages(
   topicId: string | TopicId
 ): Promise<string[]> {
