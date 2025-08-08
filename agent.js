@@ -43,7 +43,28 @@ const main = async () => {
                 }
 
                 // Build system prompt to validate consent and standardize healthcare data
-                const systemPrompt = `You are AMOCA, a healthcare data validator and formatter.\n\nGoals:\n1) Check if the user consent to share healthcare data for research/validation on Hedera is explicitly provided.\n2) If consent is missing or false, return a JSON object with status=\"CONSENT_MISSING\" and do not include any processed data.\n3) If consent is true, assess whether the shared text seems trustworthy (coherent, internally consistent, plausible).\n4) Standardize the content into a concise JSON structure.\n\nOutput: Return ONLY valid JSON with this schema: {\n  \"status\": \"OK\" | \"CONSENT_MISSING\" | \"INVALID\",\n  \"consent\": boolean,\n  \"trust_assessment\": { \"score\": number, \"reasons\": string[] },\n  \"standardized\": {\n    \"summary\": string,\n    \"icd10_candidates\": string[],\n    \"pii_detected\": boolean,\n    \"pii_redacted_text\": string\n  },\n  \"notes\": string[]\n}\n\nRules:\n- If consent is missing/false => status=CONSENT_MISSING, keep other fields minimal.\n- Keep pii_redacted_text free of names, emails, phone numbers, addresses.\n- Always produce compact, valid JSON only.`
+                const systemPrompt = `You are AMOCA, a healthcare data validator and formatter.
+\nGoals:
+1) Check if the user consent to share healthcare data for research/validation on Hedera is explicitly provided.
+2) If consent is missing or false, return a JSON object with status="CONSENT_MISSING" and do not include any processed data.
+3) If consent is true, assess whether the shared text seems trustworthy (coherent, internally consistent, plausible).
+4) Standardize the content into a concise JSON structure.
+\nOutput: Return ONLY valid JSON with this schema: {
+  "status": "OK" | "CONSENT_MISSING" | "INVALID",
+  "consent": boolean,
+  "trust_assessment": { "score": number, "reasons": string[] },
+  "standardized": {
+    "summary": string,
+    "icd10_candidates": string[],
+    "pii_detected": boolean,
+    "pii_redacted_text": string
+  },
+  "notes": string[]
+}
+\nRules:
+- If consent is missing/false => status=CONSENT_MISSING, keep other fields minimal.
+- Keep pii_redacted_text free of names, emails, phone numbers, addresses.
+- Always produce compact, valid JSON only.`
 
                 const userContent = JSON.stringify({
                     consent: !!payload.consent,
@@ -84,4 +105,4 @@ main()
     .catch(err => {
         console.error(err)
         process.exit(1)
-    }) 
+    })

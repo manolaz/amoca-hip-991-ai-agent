@@ -1,4 +1,6 @@
 "use client";
+import Image from 'next/image';
+import amocaLogo from '../../assets/images/amoca-logo.jpeg';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import AmocaInstructions from '@/components/AmocaInstructions';
 import DandelionsMedicine from '@/components/DandelionsMedicine';
@@ -116,6 +118,7 @@ export default function Home() {
     <div className="container">
       <div className="stack">
         <div className="brand-hero">
+          <Image src={amocaLogo} alt="AMOCA Logo" width={80} height={80} style={{ borderRadius: '12px' }} />
           <div className="brand-word">AMOCA</div>
           <div className="brand-tagline">Healthcare data · consent-aware · standardized with love 💖</div>
         </div>
