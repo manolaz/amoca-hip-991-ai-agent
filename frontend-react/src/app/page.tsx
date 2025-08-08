@@ -43,6 +43,23 @@ export default function Home() {
         ...m,
         { id: crypto.randomUUID(), role: 'system', content: `Submitted to Hedera Topic ${topicId}. Tx: ${json.transactionId || 'n/a'}`, timestamp: Date.now() }
       ]);
+
+      // If backend produced latestResponse from AI, surface it in chat
+      if (json.latestResponse) {
+        const pretty = (() => {
+          try { return JSON.stringify(json.latestResponse, null, 2); } catch { return String(json.latestResponse); }
+        })();
+        setMessages((m) => [
+          ...m,
+          { id: crypto.randomUUID(), role: 'assistant', content: pretty, timestamp: Date.now() }
+        ]);
+      }
+      if (json.aiError) {
+        setMessages((m) => [
+          ...m,
+          { id: crypto.randomUUID(), role: 'system', content: `AI Error: ${json.aiError}`, timestamp: Date.now() }
+        ]);
+      }
     } catch (e: any) {
       setMessages((m) => [
         ...m,
