@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server'
 import { TopicMessageSubmitTransaction } from '@hashgraph/sdk'
 import OpenAI from 'openai'
-import { getClient, checkTopicMessage } from '../../utils/hedera'
+import { getClient } from '../../utils/hedera'
 
 // Ensure Node.js runtime (not Edge) due to SDKs and environment usage
 export const runtime = 'nodejs'
@@ -12,88 +12,106 @@ export const revalidate = 0
 
 export async function POST(req: NextRequest) {
   try {
+    // The payload now includes the conversation history and current state
     const { topicId: rawTopicId, payload } = await req.json()
-    const topicId = rawTopicId || process.env.NEXT_PUBLIC_DEFAULT_TOPIC_ID || '0.0.6531943'
-    if (!topicId) return new Response(JSON.stringify({ error: 'topicId is required' }), { status: 400 })
-    if (!payload) return new Response(JSON.stringify({ error: 'payload is required' }), { status: 400 })
+    const { consent, data, user, collected_data, conversation_history } = payload
 
-    const client = await getClient()
-    const tx = await new TopicMessageSubmitTransaction()
-      .setTopicId(topicId)
-      .setMessage(JSON.stringify(payload))
-      .execute(client)
-    const receipt = await tx.getReceipt(client)
-    const transactionId = tx.transactionId?.toString()
-
-    // Verify the message was received by the network
-    const messageConfirmed = transactionId ? await checkTopicMessage(topicId, transactionId) : false
-
-    // Also run the AI agent logic (mirrors agent.js) and include latest response
-    let latestResponse: any = null
-    let aiError: string | null = null
-    try {
-      const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
-
-      const systemPrompt = `You are AMOCA, a healthcare data validator and formatter.
-\nGoals:
-1) Check if the user consent to share healthcare data for research/validation on Hedera is explicitly provided.
-2) If consent is missing or false, return a JSON object with status="CONSENT_MISSING" and do not include any processed data.
-3) If consent is true, assess whether the shared text seems trustworthy (coherent, internally consistent, plausible).
-4) Standardize the content into a concise JSON structure.
-\nOutput: Return ONLY valid JSON with this schema: {
-  "status": "OK" | "CONSENT_MISSING" | "INVALID",
-  "consent": boolean,
-  "trust_assessment": { "score": number, "reasons": string[] },
-  "standardized": {
-    "summary": string,
-    "icd10_candidates": string[],
-    "pii_detected": boolean,
-    "pii_redacted_text": string
-  },
-  "notes": string[]
-}
-\nRules:
-- If consent is missing/false => status=CONSENT_MISSING, keep other fields minimal.
-- Keep pii_redacted_text free of names, emails, phone numbers, addresses.
-- Always produce compact, valid JSON only.`
-
-      const userContent = JSON.stringify({
-        consent: !!payload.consent,
-        data: String(payload.data ?? ''),
-        user: payload.user ?? null
-      })
-
-      const completion = await openai.chat.completions.create({
-        model: 'gpt-4o-mini',
-        temperature: 0.2,
-        response_format: { type: 'json_object' },
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userContent }
-        ]
-      })
-
-      const responseText = completion.choices?.[0]?.message?.content || '{}'
-      try {
-        latestResponse = JSON.parse(responseText)
-      } catch {
-        latestResponse = { raw: responseText }
-      }
-    } catch (err: any) {
-      aiError = err?.message || 'AI processing failed'
+    if (consent === false) {
+      return new Response(JSON.stringify({ status: 'CONSENT_MISSING', consent: false }), { status: 200 })
     }
 
-    return new Response(
-      JSON.stringify({
-        ok: true,
-        status: String(receipt.status),
-        transactionId,
-        messageConfirmed,
-        latestResponse,
-        aiError
-      }),
-      { status: 200 }
-    )
+    const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
+
+    const systemPrompt = `You are AMOCA, a friendly and meticulous conversational AI assistant. Your purpose is to guide a user through the process of providing their healthcare data for an observational study on dandelion root usage in cancer patients.
+
+**Your Process:**
+1.  **Engage Conversationaly:** Interact with the user in a clear, empathetic, and step-by-step manner.
+2.  **Incremental Data Collection:** Your primary goal is to fill out a detailed JSON object with the user's information. Ask one or two related questions at a time.
+3.  **State Management:** You will be given the \`collected_data\` so far and the \`conversation_history\`. Use this to understand the context and decide what to ask next.
+4.  **Completion:** Once you have gathered all necessary information and the JSON is complete, set the status to "COMPLETE".
+
+**Output JSON Schema:**
+Your entire output MUST be a single, valid JSON object with the following structure.
+
+\`\`\`json
+{
+  "status": "IN_PROGRESS" | "COMPLETE" | "ERROR",
+  "next_question": string,
+  "collected_data": {
+    "patientId": string | null,
+    "demographics": { "age": number | null, "gender": string | null, "location": string | null },
+    "cancer_details": { "type": string | null, "stage": string | null, "diagnosis_date": string | null, "receptor_status": string | null, "location": string | null },
+    "conventional_treatment": { "surgery": object | null, "chemotherapy": object | null, "radiation": object | null, "hormone_therapy": object | null },
+    "dandelion_usage": { "start_date": string | null, "form": string | null, "dosage": string | null, "brand": string | null, "reason": string | null, "duration_months": number | null, "concurrent_with_treatment": boolean | null },
+    "reported_effects": { "side_effect_reduction": object | null, "tumor_response": object | null },
+    "lab_values": array | null,
+    "patient_notes": string | null
+  }
+}
+\`\`\`
+
+**Conversation Flow & Rules:**
+-   **Start:** If \`collected_data\` is empty, start with a welcoming message and ask the first question (e.g., about cancer type and diagnosis date).
+-   **Continue:** Based on the user's last message and the existing \`collected_data\`, fill in the JSON and ask the next logical question. For example, after getting the cancer type, ask about the stage.
+-   **Be Clear:** Frame your questions clearly. Example: "Thanks. Next, could you tell me about your surgery, if you had one? What type was it and when did it take place?"
+-   **Handle "I don't know":** If the user doesn't know or doesn't want to answer, acknowledge it and move to the next topic. Set the corresponding field to \`null\`.
+-   **Completion & Rewards:** When all fields are reasonably filled, set the status to "COMPLETE". Your final message in \`next_question\` should be a warm, human-readable summary and thank you. It MUST mention that high-quality data contributions can earn AMOCA rewards. For example: "Thank you for sharing your experience. Your contribution is incredibly valuable to this research. Based on what you've told me, I have a good overview of your journey. High-quality, verifiable clinical data like yours is essential for our study, and contributors like you can earn AMOCA rewards. Your data will now be securely submitted."
+-   **PII:** Do not ask for or store names, emails, or exact addresses. Remind the user not to share PII.
+
+**Current State:**
+-   User: ${user ?? 'anonymous'}
+-   Data collected so far: ${JSON.stringify(collected_data, null, 2)}
+-   Conversation History: ${JSON.stringify(conversation_history, null, 2)}
+`
+
+    const userContent = data ?? ''
+
+    const completion = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      temperature: 0.5,
+      response_format: { type: 'json_object' },
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userContent }
+      ]
+    })
+
+    const responseText = completion.choices?.[0]?.message?.content || '{}'
+    const aiResponse = JSON.parse(responseText)
+
+    // If the AI says the data collection is complete, submit it to Hedera.
+    if (aiResponse.status === 'COMPLETE') {
+      const topicId = rawTopicId || process.env.NEXT_PUBLIC_DEFAULT_TOPIC_ID
+      if (!topicId) throw new Error('Hedera Topic ID is not configured!')
+
+      const client = await getClient()
+      const finalPayload = {
+        consent: true,
+        user: user,
+        ...aiResponse.collected_data
+      }
+
+      const tx = await new TopicMessageSubmitTransaction()
+        .setTopicId(topicId)
+        .setMessage(JSON.stringify(finalPayload))
+        .execute(client)
+
+      const receipt = await tx.getReceipt(client)
+      const transactionId = tx.transactionId?.toString()
+
+      // Return the final confirmation including the transaction ID
+      return new Response(
+        JSON.stringify({
+          ...aiResponse,
+          hedera_status: String(receipt.status),
+          transactionId
+        }),
+        { status: 200 }
+      )
+    }
+
+    // If the conversation is still in progress, just return the AI's response.
+    return new Response(JSON.stringify(aiResponse), { status: 200 })
   } catch (e: any) {
     return new Response(JSON.stringify({ error: e.message || 'Unknown error' }), { status: 500 })
   }
