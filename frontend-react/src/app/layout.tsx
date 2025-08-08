@@ -1,28 +1,17 @@
-import type { Metadata } from "next";
-
-
-import { headers } from 'next/headers' // added
-import './globals.css';
-import ContextProvider from '@/context'
+import type { Metadata } from 'next'
+import './globals.css'
 
 export const metadata: Metadata = {
-  title: "AppKit in Next.js + multichain",
-  description: "AppKit example dApp",
-};
+  title: 'AMOCA',
+  description: 'Healthcare data contribution on Hedera',
+}
 
-export default async function RootLayout({
+export default function RootLayout({
   children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
-  const headersData = await headers();
-  const cookies = headersData.get('cookie');
-
+}: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en">
-      <body>
-        <ContextProvider cookies={cookies}>{children}</ContextProvider>
-      </body>
+      <body>{children}</body>
     </html>
-  );
+  )
 }
