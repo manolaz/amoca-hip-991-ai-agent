@@ -1,64 +1,197 @@
-'use client'
-
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import {
-    useAppKitState,
-    useAppKitTheme,
-    useAppKitEvents,
-    useAppKitAccount,
-    useWalletInfo
-     } from '@reown/appkit/react'
-import { useClientMounted } from "@/hooks/useClientMount";
+  useAppKitState,
+  useAppKitTheme,
+  useAppKitAccount,
+  useWalletInfo,
+  useAppKitProvider,
+  useAppKitNetworkCore,
+} from '@reown/appkit/react'
+import { HederaProvider } from '@hashgraph/hedera-wallet-connect'
+import { FunctionResult } from '../App'
 
-export const InfoList = () => {
-    const kitTheme = useAppKitTheme();
-    const state = useAppKitState();
-    const {address, caipAddress, isConnected, embeddedWalletInfo} = useAppKitAccount();
-    const events = useAppKitEvents()
-    const walletInfo = useWalletInfo()
-    const mounted = useClientMounted();
+interface InfoListProps {
+  hash: string
+  txId: string
+  signedMsg: string
+  nodes: string[]
+  lastFunctionResult: FunctionResult | null
+}
 
-    useEffect(() => {
-        console.log("Events: ", events);
-    }, [events]);
+export const InfoList = ({
+  hash,
+  txId,
+  signedMsg,
+  nodes,
+  lastFunctionResult,
+}: InfoListProps) => {
+  const [statusEthTx, setStatusEthTx] = useState('')
+  const { themeMode, themeVariables } = useAppKitTheme()
+  const state = useAppKitState()
+  const { chainId } = useAppKitNetworkCore()
+  const { address, caipAddress, isConnected, status } = useAppKitAccount()
+  const walletInfo = useWalletInfo()
+  const { walletProvider } = useAppKitProvider<HederaProvider>('eip155')
+  const isEthChain = state.activeChain == 'eip155'
 
-  return !mounted ? null : (
+  useEffect(() => {
+    const checkTransactionStatus = async () => {
+      if (!walletProvider || chainId === undefined) return
+      if (isEthChain && hash) {
+        try {
+          const rpcProvider = (
+            walletProvider.rpcProviders as unknown as Record<
+              string,
+              Record<
+                string,
+                Record<
+                  number,
+                  {
+                    request: (params: { method: string; params: unknown[] }) => Promise<unknown>
+                  }
+                >
+              >
+            >
+          )?.eip155?.httpProviders?.[chainId as number]
+          const receipt = await rpcProvider.request({
+            method: 'eth_getTransactionReceipt',
+            params: [hash],
+          })
+          const receiptWithStatus = receipt as { status?: number } | null
+          setStatusEthTx(
+            receiptWithStatus?.status === 1
+              ? 'Success'
+              : receiptWithStatus?.status === 0
+                ? 'Failed'
+                : 'Pending',
+          )
+        } catch (err) {
+          console.error('Error checking transaction status:', err)
+          setStatusEthTx('Error')
+        }
+      }
+    }
+    checkTransactionStatus()
+  }, [hash, walletProvider, chainId, state.activeChain, txId, isEthChain])
+
+  return (
     <>
+      {lastFunctionResult && (
         <section>
-            <h2>useAppKit</h2>
-            <pre>
-                Address: {address}<br />
-                caip Address: {caipAddress}<br />
-                Connected: {isConnected.toString()}<br />
-                Account Type: {embeddedWalletInfo?.accountType}<br />
-                {embeddedWalletInfo?.user?.email && (`Email: ${embeddedWalletInfo?.user?.email}\n`)}
-                {embeddedWalletInfo?.user?.username && (`Username: ${embeddedWalletInfo?.user?.username}\n`)}
-                {embeddedWalletInfo?.authProvider && (`Provider: ${embeddedWalletInfo?.authProvider}\n`)}
-            </pre>
+          <h2>Last Function Result</h2>
+          <pre style={{ wordBreak: 'break-all' }}>
+            Function: {lastFunctionResult.functionName}
+            <br />
+            Result: {lastFunctionResult.result}
+          </pre>
         </section>
+      )}
 
+      {hash && isEthChain && (
         <section>
-            <h2>Theme</h2>
-            <pre>
-                Theme: {kitTheme.themeMode}<br />
-            </pre>
+          <h2>Transaction</h2>
+          <pre>
+            Hash:{' '}
+            <a
+              href={`https://hashscan.io/${
+                state.selectedNetworkId?.toString() == 'eip155:296' ? 'testnet/' : ''
+              }transaction/${hash}`}
+              target="_blank"
+            >
+              {hash}
+            </a>
+            <br />
+            Status: {statusEthTx}
+            <br />
+          </pre>
         </section>
+      )}
 
+      {txId && !isEthChain && (
         <section>
-            <h2>State</h2>
-            <pre>
-                Selected Network ID: {state.selectedNetworkId?.toString()}<br />
-                loading: {state.loading.toString()}<br />
-                open: {state.open.toString()}<br />
-            </pre>
+          <h2>Transaction</h2>
+          <pre>
+            Id:
+            <a
+              href={`https://hashscan.io/${
+                state.selectedNetworkId?.toString() == 'hedera:testnet' ? 'testnet/' : ''
+              }transaction/${txId}`}
+              target="_blank"
+            >
+              {txId}
+            </a>
+            <br />
+          </pre>
         </section>
+      )}
 
+      {signedMsg && (
         <section>
-            <h2>WalletInfo</h2>
-            <pre>
-                Name: {walletInfo.walletInfo?.name?.toString()}<br />
-            </pre>
+          <h2>Signature of message</h2>
+          <pre>
+            {signedMsg}
+            <br />
+          </pre>
         </section>
+      )}
+
+      <section>
+        <h2>useAppKit</h2>
+        <pre>
+          Address: {address}
+          <br />
+          caip Address: {caipAddress}
+          <br />
+          Connected: {isConnected.toString()}
+          <br />
+          Status: {status}
+          <br />
+        </pre>
+      </section>
+
+      <section>
+        <h2>Theme</h2>
+        <pre>
+          Theme: {themeMode}
+          <br />
+          ThemeVariables: {JSON.stringify(themeVariables, null, 2)}
+          <br />
+        </pre>
+      </section>
+
+      <section>
+        <h2>State</h2>
+        <pre>
+          activeChain: {state.activeChain}
+          <br />
+          loading: {state.loading.toString()}
+          <br />
+          open: {state.open.toString()}
+          <br />
+          selectedNetworkId: {state.selectedNetworkId?.toString()}
+          <br />
+        </pre>
+      </section>
+
+      <section>
+        <h2>WalletInfo</h2>
+        <pre>
+          Name: {walletInfo.walletInfo?.name?.toString()}
+          <br />
+        </pre>
+      </section>
+
+      {nodes.length > 0 && (
+        <section>
+          <h2>Nodes</h2>
+          {nodes.map((node) => (
+            <pre key={node}>
+              {node}
+              <br />
+            </pre>
+          ))}
+        </section>
+      )}
     </>
   )
 }
