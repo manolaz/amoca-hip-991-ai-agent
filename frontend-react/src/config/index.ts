@@ -11,7 +11,7 @@ import { JsonRpcProvider } from 'ethers'
 // Get projectId from https://cloud.reown.com
 export const projectId = import.meta.env.NEXT_PUBLIC_PROJECT_ID
 export const hederaRpcUrl =
-  import.meta.env.VITE_HEDERA_RPC_URL || 'https://testnet.hedera.api.hgraph.io/v1/pk_test/rpc'
+  import.meta.env.HEDERA_RPC_URL || 'https://testnet.hedera.api.hgraph.io/v1/pk_test/rpc'
 export const jsonRpcProvider = new JsonRpcProvider(hederaRpcUrl)
 
 if (!projectId) {
