@@ -4,6 +4,7 @@ import amocaLogo from '../../assets/images/amoca-logo.jpeg';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import AmocaInstructions from '@/components/AmocaInstructions';
 import DandelionsMedicine from '@/components/DandelionsMedicine';
+import PrivacyAnonymization from '@/components/PrivacyAnonymization';
 
 type ChatMsg = {
   id: string;
@@ -92,6 +93,7 @@ export default function Home() {
 
   <AmocaInstructions />
   <DandelionsMedicine />
+  <PrivacyAnonymization />
 
         <div className="card">
           <div className="form-grid">
