@@ -60,7 +60,7 @@ Your entire output MUST be ersonal and empathetic message when the data collecti
 -   **PII:** Do not ask for or store names, emails, or exact addresses. Remind the user not to share PII.
 
 **Current State:**
--   User: ${user ?? 'anonymous'}
+-   User: anonymous
 -   Data collected so far: ${JSON.stringify(collected_data, null, 2)}
 -   Conversation History: ${JSON.stringify(conversation_history, null, 2)}
 `
@@ -88,7 +88,6 @@ Your entire output MUST be ersonal and empathetic message when the data collecti
       const client = await getClient()
       const finalPayload = {
         consent: true,
-        user: user,
         ...aiResponse.collected_data
       }
 
