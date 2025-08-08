@@ -50,7 +50,7 @@ export async function getClient(): Promise<Client> {
 export async function checkTopicMessage(topicId: string, transactionId: string): Promise<boolean> {
   return new Promise(async (resolve, reject) => {
     const client = await getClient();
-    let subscription;
+    let subscription: { unsubscribe: () => void } | null = null;
     const timeout = setTimeout(() => {
       if (subscription) {
         subscription.unsubscribe();
@@ -60,12 +60,12 @@ export async function checkTopicMessage(topicId: string, transactionId: string):
     }, 10000); // 10-second timeout
 
     try {
-      subscription = new TopicMessageQuery()
+    subscription = new TopicMessageQuery()
         .setTopicId(topicId)
         .setStartTime(0) // Start from the beginning of the topic
         .subscribe(
           client,
-          (error) => {
+      (error) => {
             console.error('Error subscribing to topic:', error);
             clearTimeout(timeout);
             reject(error);
