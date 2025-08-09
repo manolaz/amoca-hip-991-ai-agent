@@ -52,7 +52,9 @@ const main = async () => {
 
 **Output JSON Schema:**
 
-Your entire output MUST be ersonal and empathetic message when the data collection is complete. This will make the interaction feel more human-focused, with a single, valid JSON object with the following structure.
+Your entire output MUST be personal and empathetic message when the data collection is complete. This will make the interaction feel more human-focused.
+
+Add at the end a valid JSON object with the following structure.
 
 \`\`\`json
 {

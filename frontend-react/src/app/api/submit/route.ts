@@ -185,22 +185,75 @@ export async function POST(req: NextRequest) {
 
 **Output JSON Schema:**
 
-Your entire output MUST be personal and empathetic message when the data collection is complete. This will make the interaction feel more human-focused . Add at the endwith a single, valid JSON object with the following structure.
+Your entire output MUST be personal and empathetic message when the data collection is complete. This will make the interaction feel more human-focused.
+
+Add at the end a valid JSON object with the following structure.
+
 
 \`\`\`json
 {
-  "status": "IN_PROGRESS" | "COMPLETE" | "ERROR",
-  "next_question": string,
-  "collected_data": {
-    "patientId": string | null,
-    "demographics": { "age": number | null, "gender": string | null, "location": string | null },
-    "cancer_details": { "type": string | null, "stage": string | null, "diagnosis_date": string | null, "receptor_status": string | null, "location": string | null },
-    "conventional_treatment": { "surgery": object | null, "chemotherapy": object | null, "radiation": object | null, "hormone_therapy": object | null },
-    "dandelion_usage": { "start_date": string | null, "form": string | null, "dosage": string | null, "brand": string | null, "reason": string | null, "duration_months": number | null, "concurrent_with_treatment": boolean | null },
-    "reported_effects": { "side_effect_reduction": object | null, "tumor_response": object | null },
-    "lab_values": array | null,
-    "patient_notes": string | null
-  }
+  "status": "OK" | "CONSENT_MISSING" | "INVALID_DATA",
+  "consent": boolean,
+  "trust_assessment": {
+    "score": number,
+    "reasons": string[]
+  },
+  "standardized_data": {
+    "patientId": string,
+    "demographics": {
+      "age": number,
+      "gender": "female" | "male" | "other" | "unknown",
+      "location": string
+    },
+    "cancer_details": {
+      "type": string,
+      "stage": string,
+      "diagnosis_date": "YYYY-MM-DD",
+      "receptor_status": string,
+      "location": string
+    },
+    "conventional_treatment": {
+      "surgery": { "type": string, "date": "YYYY-MM-DD" },
+      "chemotherapy": { "regimen": string, "start_date": "YYYY-MM-DD", "end_date": "YYYY-MM-DD", "response": string },
+      "radiation": { "start_date": "YYYY-MM-DD", "end_date": "YYYY-MM-DD", "total_dose": string },
+      "hormone_therapy": { "medication": string, "start_date": "YYYY-MM-DD", "ongoing": boolean }
+    },
+    "dandelion_usage": {
+      "start_date": "YYYY-MM-DD",
+      "form": string,
+      "dosage": string,
+      "brand": string,
+      "reason": string,
+      "duration_months": number,
+      "concurrent_with_treatment": boolean
+    },
+    "reported_effects": {
+      "side_effect_reduction": {
+        "nausea": string,
+        "fatigue": string,
+        "appetite": string,
+        "liver_function": string
+      },
+      "tumor_response": {
+        "pre_dandelion_size": string,
+        "post_treatment_size": string,
+        "mri_date": "YYYY-MM-DD",
+        "oncologist_notes": string
+      }
+    },
+    "lab_values": [
+      {
+        "date": "YYYY-MM-DD",
+        "alt": number,
+        "ast": number,
+        "bilirubin": number,
+        "notes": string
+      }
+    ],
+    "patient_notes": string,
+    "pii_redacted_text": string
+  },
+  "notes": string[]
 }
 \`\`\`
 
