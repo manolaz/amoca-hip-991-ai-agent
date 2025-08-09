@@ -1,9 +1,7 @@
 "use client";
 import Image from 'next/image';
 import amocaLogo from '../../assets/images/amoca-logo.jpeg';
-import { useEffect, useMemo, useRef,           <p className="subtitle">
-            Contribute health data to a Hedera Topic. We'll provide instant analytics and standardized summaries (no PII).
-          </p>State } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import AmocaInstructions from '@/components/AmocaInstructions';
 import DandelionsMedicine from '@/components/DandelionsMedicine';
 import PrivacyAnonymization from '@/components/PrivacyAnonymization';
