@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server'
 import { OpenAIHederaIntegration } from '../../utils/openai-hedera-integration'
 import { deepSanitize, sanitizeText } from '../../utils/pii'
-import { loadAnalyticsPrompt } from '../../utils/prompt-loader'
+import { loadAnalyticsPrompt } from '../../../utils/prompt-loader'
 import { 
   Client, 
   AccountId, 
