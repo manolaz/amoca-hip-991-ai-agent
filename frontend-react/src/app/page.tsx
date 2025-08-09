@@ -141,12 +141,20 @@ export default function Home() {
           <Image src={amocaLogo} alt="AMOCA Logo" width={80} height={80} style={{ borderRadius: '12px' }} />
           <div className="brand-word">AMOCA</div>
           <div className="brand-tagline">Healthcare data · streamlined analytics · standardized with love 💖</div>
+          <div className="hedera-hero">
+            <Image src="/hedera-logo.svg" alt="Hedera Logo" width={64} height={64} />
+            <div className="hedera-hero-text">
+              <div className="hedera-eyebrow">Powered by Hedera</div>
+              <div className="hedera-title">Secure Health Data on Hashgraph</div>
+              <div className="hedera-subtitle">HIP-991 · Topic Messaging · Tokenized Fees</div>
+            </div>
+          </div>
         </div>
         <div className="card soft">
           <div className="pill">🩺 AMOCA · Healthcare Data on Hedera</div>
-          <h1 className="title">Share, Validate, Standardize ✨</h1>
+          <h1 className="title">Hedera-Powered Analytics ✨</h1>
           <p className="subtitle">
-            Contribute health data to a Hedera Topic. We’ll verify consent, assess trust, and provide a clean summary (no PII).
+            Contribute health data to a Hedera Topic. Consent is verified, PII is cleaned, and you get instant analytics.
           </p>
         </div>
 
@@ -155,6 +163,10 @@ export default function Home() {
   <PrivacyAnonymization />
 
         <div className="card">
+          <div className="hedera-section">
+            <h2 className="hedera-heading">Hedera Topic Submission</h2>
+            <p className="subtitle">Post structured healthcare messages to a Hedera Topic with a fixed token fee. Transparent, fast, and verifiable.</p>
+          </div>
           <div className="form-grid">
             <label className="stack">
               <span className="label">📬 Hedera Topic ID</span>
@@ -184,7 +196,7 @@ export default function Home() {
         </div>
 
         <div className="card soft" style={{ marginTop: 12 }}>
-          <h3>💬 Chat</h3>
+          <h3>💬 Hedera Analytics & Chat</h3>
           <div className="spacer-sm" />
           <div className="chat">
             {messages.map((m) => (

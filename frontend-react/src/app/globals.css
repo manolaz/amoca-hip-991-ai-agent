@@ -332,3 +332,48 @@ pre {
   opacity: 0.8;
   font-size: clamp(14px, 2.6vw, 20px);
 }
+
+/* Hedera branding block */
+.hedera-hero {
+  margin: 16px auto 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.6);
+  border: 1px solid var(--border);
+}
+
+.hedera-hero-text {
+  text-align: left;
+}
+
+.hedera-eyebrow {
+  font-size: 12px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #0b3d91;
+  /* Hedera-ish deep blue */
+  opacity: 0.9;
+}
+
+.hedera-title {
+  font-family: 'Bellerose', 'Aerolite', ui-sans-serif, system-ui;
+  font-size: clamp(18px, 4vw, 28px);
+  line-height: 1.1;
+}
+
+.hedera-subtitle {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.hedera-section {
+  margin-bottom: 8px;
+}
+
+.hedera-heading {
+  font-size: 22px;
+  margin-bottom: 4px;
+}
