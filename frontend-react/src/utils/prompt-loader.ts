@@ -2,7 +2,7 @@ import { readFileSync } from 'fs'
 import { join } from 'path'
 
 export function loadAnalyticsPrompt(collectedData: any, conversationHistory: any): string {
-  const promptPath = join(process.cwd(), 'src', 'prompts', 'analytics-system-prompt.txt')
+  const promptPath = join(process.cwd(), 'prompts', 'analytics-system-prompt.txt')
   const systemPromptTemplate = readFileSync(promptPath, 'utf-8')
   
   // Replace placeholders with actual data

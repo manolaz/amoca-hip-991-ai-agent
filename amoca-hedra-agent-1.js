@@ -2,6 +2,7 @@ const dotenv = require('dotenv')
 const getClient = require('./utils/client')
 const { TopicMessageQuery } = require('@hashgraph/sdk')
 const OpenAI = require('openai')
+const { loadAnalyticsPrompt } = require('./utils/prompt-loader')
 
 dotenv.config()
 
@@ -43,8 +44,13 @@ const main = async () => {
                 }
 
                 // Build system prompt to validate consent and standardize healthcare data
-                const systemPrompt = ''
-                
+                // Load system prompt from external file
+                console.log('Loading analytics system prompt from external file...')
+                const systemPrompt = loadAnalyticsPrompt(
+                    { message_data: payload.data }, // collected data from message
+                    [{ role: 'user', content: payload.data }] // conversation history
+                )
+
                 const userContent = JSON.stringify({
                     consent: !!payload.consent,
                     data: String(payload.data ?? ''),
