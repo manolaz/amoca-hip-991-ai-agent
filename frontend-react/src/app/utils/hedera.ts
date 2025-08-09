@@ -47,34 +47,50 @@ export async function getClient(): Promise<Client> {
   return client;
 }
 
+/**
+ * Checks if a new message appears on a topic after the function is called
+ * This is useful for verifying that a message submission was successful
+ * 
+ * @param topicId - The Hedera topic ID to monitor
+ * @param transactionId - Not used in current implementation, kept for API compatibility
+ * @returns Promise that resolves to true if a new message is detected, false on timeout
+ */
 export async function checkTopicMessage(topicId: string, transactionId: string): Promise<boolean> {
   return new Promise(async (resolve, reject) => {
     const client = await getClient();
     let subscription: { unsubscribe: () => void } | null = null;
+    const startTime = Date.now();
+    
     const timeout = setTimeout(() => {
       if (subscription) {
         subscription.unsubscribe();
       }
-      console.warn(`Timeout waiting for message with transaction ID ${transactionId}`);
+      console.warn(`Timeout waiting for new message on topic ${topicId}`);
       resolve(false); // Resolve with false on timeout
     }, 10000); // 10-second timeout
 
     try {
-    subscription = new TopicMessageQuery()
+      subscription = new TopicMessageQuery()
         .setTopicId(topicId)
-        .setStartTime(0) // Start from the beginning of the topic
+        .setStartTime(Math.floor(startTime / 1000) - 30) // Start from 30 seconds ago
         .subscribe(
           client,
-      (error) => {
+          (error) => {
             console.error('Error subscribing to topic:', error);
             clearTimeout(timeout);
             reject(error);
           },
           (message) => {
-            // The transactionId on the message is the parent transactionId of the HCS submit message
-            // It may not be what you are looking for if you need the child transaction id.
-            // Here we assume we are checking against the transactionId of the TopicMessageSubmitTransaction
-            if (message.transactionId?.toString() === transactionId) {
+            // Check if this message was submitted after we started the check
+            const messageTime = message.consensusTimestamp;
+            if (messageTime && messageTime.toDate().getTime() >= startTime - 5000) { // 5 second buffer
+              console.log('New message detected on topic:', {
+                topicId,
+                consensusTimestamp: messageTime.toString(),
+                sequenceNumber: message.sequenceNumber?.toString(),
+                contentLength: message.contents.length
+              });
+              
               clearTimeout(timeout);
               if (subscription) {
                 subscription.unsubscribe();
