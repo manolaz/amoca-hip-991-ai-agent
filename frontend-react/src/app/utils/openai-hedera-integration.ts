@@ -1,6 +1,6 @@
 import { Client, TopicMessageSubmitTransaction, TopicCreateTransaction } from '@hashgraph/sdk'
 import OpenAI from 'openai'
-import { getClient } from '../frontend-react/src/app/utils/hedera'
+import { getClient } from './hedera'
 
 /**
  * Utility class for OpenAI + Hedera integration
