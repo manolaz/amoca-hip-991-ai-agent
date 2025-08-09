@@ -48,6 +48,10 @@ async function createFeePayerAccount(client: Client) {
 async function createFeeToken(client: Client) {
   console.log('Creating mock fee token...')
   
+  if (!client.operatorAccountId) {
+    throw new Error('Client operator account ID is not set')
+  }
+  
   const tokenCreateTx = new TokenCreateTransaction()
     .setTokenName('AMOCA Fee Token')
     .setTokenSymbol('AFT')
@@ -83,6 +87,10 @@ async function transferFeeTokens(client: Client, tokenId: any, fromAccountId: an
  */
 async function createTopicWithFees(client: Client, feeTokenId: any, feeAmount: number = 5) {
   console.log('Creating topic with custom fees...')
+  
+  if (!client.operatorAccountId) {
+    throw new Error('Client operator account ID is not set')
+  }
   
   const customFee = new CustomFixedFee()
     .setDenominatingTokenId(feeTokenId)
@@ -231,6 +239,9 @@ Your entire output MUST be personal and empathetic message when the data collect
         console.log(`Fee token created: ${feeTokenId}`)
 
         // Step 4c: Transfer tokens to fee payer
+        if (!client.operatorAccountId) {
+          throw new Error('Client operator account ID is not set for token transfer')
+        }
         await transferFeeTokens(client, feeTokenId, client.operatorAccountId, feePayerAccount.accountId, 100)
         console.log('Transferred 100 tokens to fee payer account')
 
