@@ -1,6 +1,6 @@
 const dotenv = require('dotenv')
 const getClient = require('./utils/client')
-const { TopicMessageQuery } = require('@hashgraph/sdk')
+const { TopicMessageQuery, TopicMessageSubmitTransaction } = require('@hashgraph/sdk')
 const OpenAI = require('openai')
 const { loadAnalyticsPrompt } = require('./utils/prompt-loader')
 
@@ -17,6 +17,24 @@ const main = async () => {
 
     console.log('Initializing Hedera client...')
     const client = await getClient()
+
+    // Optional: publish results to a different topic to avoid loops
+    const outputTopicId = process.env.OUTPUT_TOPIC_ID || topicId
+
+    // Helper to publish a JSON payload back to Hedera
+    const publishResult = async (payload) => {
+        try {
+            const message = JSON.stringify(payload)
+            const submitTx = new TopicMessageSubmitTransaction()
+                .setTopicId(outputTopicId)
+                .setMessage(message)
+            const submitRx = await submitTx.execute(client)
+            const receipt = await submitRx.getReceipt(client)
+            console.log(`Published analysis to topic ${outputTopicId} → status: ${receipt.status}`)
+        } catch (e) {
+            console.error('Failed to publish analysis result:', e?.message || e)
+        }
+    }
 
     // Initialize OpenAI client
     const openai = new OpenAI({
@@ -41,6 +59,12 @@ const main = async () => {
                 } catch (e) {
                     console.warn('Message is not valid JSON. Wrapping as raw text.')
                     payload = { data: messageText }
+                }
+
+                // Guard against re-processing our own output when using the same topic
+                if (payload && payload.__agent_output === true) {
+                    console.log('Skipping agent output message to prevent loops.')
+                    return
                 }
 
                 // Build system prompt for healthcare data analytics
@@ -69,12 +93,25 @@ const main = async () => {
 
                 const responseText = completion.choices?.[0]?.message?.content || '{}'
                 // Parse and pretty-print result
+                let analysisResult = null
                 try {
-                    const json = JSON.parse(responseText)
-                    console.log('AI Validation + Standardization Result:', JSON.stringify(json, null, 2))
+                    analysisResult = JSON.parse(responseText)
+                    console.log('AI Validation + Standardization Result:', JSON.stringify(analysisResult, null, 2))
                 } catch (e) {
+                    analysisResult = { raw: responseText }
                     console.log('AI Response (non-JSON):', responseText)
                 }
+
+                // Publish the final analysis back to Hedera
+                await publishResult({
+                    __agent_output: true, // loop-prevention marker
+                    agent: 'amoca-hedra-agent-1',
+                    sourceTopicId: topicId,
+                    outputTopicId,
+                    timestamp: new Date().toISOString(),
+                    original: payload,
+                    analysis: analysisResult
+                })
             } catch (error) {
                 console.error('Error processing message:', error)
             }
