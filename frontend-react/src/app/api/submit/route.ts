@@ -144,6 +144,35 @@ async function submitMessageWithFee(
   }
 }
 
+/**
+ * Submits a message using the current operator (no custom fee handling)
+ */
+async function submitMessageAsOperator(
+  client: Client,
+  topicId: any,
+  message: string
+) {
+  console.log('Submitting message as operator...')
+
+  const submitMessageTx = new TopicMessageSubmitTransaction()
+    .setTopicId(topicId)
+    .setMessage(message)
+
+  const executeSubmitMessageTx = await submitMessageTx.execute(client)
+  const submitMessageReceipt = await executeSubmitMessageTx.getReceipt(client)
+  const transactionId = executeSubmitMessageTx.transactionId?.toString()
+
+  console.log('Message submitted successfully as operator')
+  console.log(`Transaction status: ${submitMessageReceipt.status}`)
+  console.log(`Transaction ID: ${transactionId}`)
+
+  return {
+    status: String(submitMessageReceipt.status),
+    transactionId: transactionId || '',
+    topicId: String(topicId)
+  }
+}
+
 // Ensure Node.js runtime (not Edge) due to SDKs and environment usage
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -236,17 +265,46 @@ export async function POST(req: NextRequest) {
 
         console.log('Final analytics payload prepared and sanitized')
 
-        // Step 4f: Submit message using fee payer account
-        const hederaResult = await submitMessageWithFee(
-          feePayerAccount.accountId,
-          feePayerAccount.privateKey,
-          topicId,
-          JSON.stringify(finalPayload)
-        )
+        // Determine output topic (supports overriding via env like the agent)
+        const outputTopicId = process.env.OUTPUT_TOPIC_ID || String(topicId)
+
+        // Wrap with agent-style envelope and loop-prevention marker
+        const publishPayload = deepSanitize({
+          __agent_output: true,
+          agent: 'amoca-hedra-api',
+          sourceTopicId: rawTopicId ? String(rawTopicId) : null,
+          outputTopicId: String(outputTopicId),
+          timestamp: new Date().toISOString(),
+          original: {
+            data: userContent,
+            user: user ?? null,
+            collected_data,
+            conversation_history
+          },
+          analysis: aiResponse,
+          standardized: finalPayload
+        })
+
+        console.log(`Publishing analytics to topic ${outputTopicId} (env override supported) ...`)
+
+        // Step 4f: Submit message either with fee payer (same topic) or as operator (different topic)
+        const sameTopic = String(outputTopicId) === String(topicId)
+        const hederaResult = sameTopic
+          ? await submitMessageWithFee(
+              feePayerAccount.accountId,
+              feePayerAccount.privateKey,
+              topicId,
+              JSON.stringify(publishPayload)
+            )
+          : await submitMessageAsOperator(
+              client,
+              outputTopicId,
+              JSON.stringify(publishPayload)
+            )
 
         console.log('==============================================')
         console.log('ANALYTICS WORKFLOW COMPLETED SUCCESSFULLY!')
-        console.log(`Topic: ${hederaResult.topicId}`)
+  console.log(`Topic: ${hederaResult.topicId}`)
         console.log(`Transaction: ${hederaResult.transactionId}`)
         console.log(`Analytics processed by: ${feePayerAccount.accountId}`)
         console.log(`Fee token: ${feeTokenId}`)
@@ -259,12 +317,14 @@ export async function POST(req: NextRequest) {
             hedera_status: hederaResult.status,
             transactionId: hederaResult.transactionId,
             topicId: hederaResult.topicId,
+            outputTopicId: String(outputTopicId),
             workflow_details: {
               analytics_processor: String(feePayerAccount.accountId),
               fee_token: String(feeTokenId),
               tokens_transferred: 100,
               fee_per_message: 5,
               workflow_complete: true,
+              publish_mode: (String(outputTopicId) === String(topicId)) ? 'fee_payer' : 'operator',
               analysis_type: 'healthcare_analytics'
             },
             latestResponse: aiResponse,
