@@ -1,7 +1,9 @@
 "use client";
 import Image from 'next/image';
 import amocaLogo from '../../assets/images/amoca-logo.jpeg';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef,           <p className="subtitle">
+            Contribute health data to a Hedera Topic. We'll provide instant analytics and standardized summaries (no PII).
+          </p>State } from 'react';
 import AmocaInstructions from '@/components/AmocaInstructions';
 import DandelionsMedicine from '@/components/DandelionsMedicine';
 import PrivacyAnonymization from '@/components/PrivacyAnonymization';
@@ -17,7 +19,6 @@ type ChatMsg = {
 
 export default function Home() {
   const [topicId, setTopicId] = useState<string>(process.env.NEXT_PUBLIC_DEFAULT_TOPIC_ID || '0.0.6531943');
-  const [consent, setConsent] = useState<boolean>(false);
   const [input, setInput] = useState<string>("");
   const [busy, setBusy] = useState<boolean>(false);
   const [messages, setMessages] = useState<ChatMsg[]>([]);
@@ -54,7 +55,7 @@ export default function Home() {
     }
 
     const payload = { 
-      consent, 
+      consent: true, // Always provide consent for streamlined experience
       data: input,
       collected_data: {}, // Initialize empty collected data
       conversation_history: messages.filter(m => m.role === 'user' || m.role === 'assistant').map(m => ({
@@ -141,7 +142,7 @@ export default function Home() {
         <div className="brand-hero">
           <Image src={amocaLogo} alt="AMOCA Logo" width={80} height={80} style={{ borderRadius: '12px' }} />
           <div className="brand-word">AMOCA</div>
-          <div className="brand-tagline">Healthcare data · consent-aware · standardized with love 💖</div>
+          <div className="brand-tagline">Healthcare data · streamlined analytics · standardized with love 💖</div>
         </div>
         <div className="card soft">
           <div className="pill">🩺 AMOCA · Healthcare Data on Hedera</div>
@@ -166,10 +167,6 @@ export default function Home() {
                 onChange={(e) => setTopicId(e.target.value)}
               />
             </label>
-            <label className="inline">
-              <input className="checkbox" type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} />
-              <span>✅ I consent to share my data for validation and standardization.</span>
-            </label>
             <label className="stack">
               <span className="label">📝 Your message (health data, symptoms, notes)</span>
               <textarea
@@ -182,7 +179,7 @@ export default function Home() {
             </label>
             <div style={{ display: 'flex', gap: 8 }}>
               <button className="btn btn-primary" disabled={!canSend || busy} onClick={send}>
-                {busy ? 'Sending…' : 'Send to Topic ✈️'}
+                {busy ? 'Analyzing…' : 'Analyze & Submit ✈️'}
               </button>
             </div>
           </div>

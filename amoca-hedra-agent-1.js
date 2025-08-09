@@ -34,16 +34,16 @@ const main = async () => {
                 const messageText = Buffer.from(message.contents).toString('utf8')
                 console.log(`Received message: ${messageText}`)
 
-                // Expecting JSON payload from frontend: { consent: boolean, data: string, user?: string }
+                // Expecting JSON payload from frontend: { data: string, user?: string }
                 let payload
                 try {
                     payload = JSON.parse(messageText)
                 } catch (e) {
                     console.warn('Message is not valid JSON. Wrapping as raw text.')
-                    payload = { consent: false, data: messageText }
+                    payload = { data: messageText }
                 }
 
-                // Build system prompt to validate consent and standardize healthcare data
+                // Build system prompt for healthcare data analytics
                 // Load system prompt from external file
                 console.log('Loading analytics system prompt from external file...')
                 const systemPrompt = loadAnalyticsPrompt(
@@ -52,7 +52,6 @@ const main = async () => {
                 )
 
                 const userContent = JSON.stringify({
-                    consent: !!payload.consent,
                     data: String(payload.data ?? ''),
                     user: payload.user ?? null
                 })
