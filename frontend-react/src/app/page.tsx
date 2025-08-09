@@ -5,12 +5,14 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import AmocaInstructions from '@/components/AmocaInstructions';
 import DandelionsMedicine from '@/components/DandelionsMedicine';
 import PrivacyAnonymization from '@/components/PrivacyAnonymization';
+import { sanitizeText } from './utils/pii';
 
 type ChatMsg = {
   id: string;
-  role: 'user' | 'system' | 'assistant';
+  role: 'user' | 'system' | 'assistant' | 'cleaned' | 'ai-response';
   content: string;
   timestamp: number;
+  isJSON?: boolean;
 };
 
 export default function Home() {
@@ -30,12 +32,39 @@ export default function Home() {
   const send = async () => {
     if (!canSend) return;
     setBusy(true);
-    const payload = { consent, data: input };
-    try {
+    
+    // Show original user input
+    setMessages((m) => [
+      ...m,
+      { id: crypto.randomUUID(), role: 'user', content: input, timestamp: Date.now() }
+    ]);
+
+    // Show cleaned version
+    const cleanedInput = sanitizeText(input);
+    if (cleanedInput !== input) {
       setMessages((m) => [
         ...m,
-        { id: crypto.randomUUID(), role: 'user', content: input, timestamp: Date.now() }
+        { 
+          id: crypto.randomUUID(), 
+          role: 'cleaned', 
+          content: `🧹 Cleaned version (PII removed): ${cleanedInput}`, 
+          timestamp: Date.now() 
+        }
       ]);
+    }
+
+    const payload = { 
+      consent, 
+      data: input,
+      collected_data: {}, // Initialize empty collected data
+      conversation_history: messages.filter(m => m.role === 'user' || m.role === 'assistant').map(m => ({
+        role: m.role,
+        content: m.content,
+        timestamp: m.timestamp
+      }))
+    };
+    
+    try {
       setInput("");
       const res = await fetch('/api/submit', {
         method: 'POST',
@@ -44,31 +73,62 @@ export default function Home() {
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || 'Submission failed');
+      
+      // Show Hedera submission result
       setMessages((m) => [
         ...m,
-        { id: crypto.randomUUID(), role: 'system', content: `Submitted to Hedera Topic ${topicId}. Tx: ${json.transactionId || 'n/a'}`, timestamp: Date.now() }
+        { 
+          id: crypto.randomUUID(), 
+          role: 'system', 
+          content: `✅ Submitted to Hedera Topic ${topicId}. Tx: ${json.transactionId || 'n/a'}`, 
+          timestamp: Date.now() 
+        }
       ]);
 
-      // If backend produced latestResponse from AI, surface it in chat
+      // Display OpenAI response in a formatted way
       if (json.latestResponse) {
-        const pretty = (() => {
-          try { return JSON.stringify(json.latestResponse, null, 2); } catch { return String(json.latestResponse); }
-        })();
+        // Show the AI's conversational response if it has one
+        if (json.latestResponse.next_question) {
+          setMessages((m) => [
+            ...m,
+            { 
+              id: crypto.randomUUID(), 
+              role: 'ai-response', 
+              content: json.latestResponse.next_question, 
+              timestamp: Date.now() 
+            }
+          ]);
+        }
+
+        // Show the structured data collection progress
+        const structuredData = {
+          status: json.latestResponse.status,
+          collected_data: json.latestResponse.collected_data,
+          ...(json.workflow_details && { workflow_details: json.workflow_details })
+        };
+        
         setMessages((m) => [
           ...m,
-          { id: crypto.randomUUID(), role: 'assistant', content: pretty, timestamp: Date.now() }
+          { 
+            id: crypto.randomUUID(), 
+            role: 'assistant', 
+            content: JSON.stringify(structuredData, null, 2), 
+            timestamp: Date.now(),
+            isJSON: true
+          }
         ]);
       }
+      
       if (json.aiError) {
         setMessages((m) => [
           ...m,
-          { id: crypto.randomUUID(), role: 'system', content: `AI Error: ${json.aiError}`, timestamp: Date.now() }
+          { id: crypto.randomUUID(), role: 'system', content: `❌ AI Error: ${json.aiError}`, timestamp: Date.now() }
         ]);
       }
     } catch (e: any) {
       setMessages((m) => [
         ...m,
-        { id: crypto.randomUUID(), role: 'system', content: `Error: ${e.message}`, timestamp: Date.now() }
+        { id: crypto.randomUUID(), role: 'system', content: `❌ Error: ${e.message}`, timestamp: Date.now() }
       ]);
     } finally {
       setBusy(false);
@@ -134,8 +194,47 @@ export default function Home() {
           <div className="chat">
             {messages.map((m) => (
               <div key={m.id} className={`msg ${m.role}`}>
-                <div className="meta">{m.role}</div>
-                {m.role === 'assistant' ? <pre>{m.content}</pre> : <div>{m.content}</div>}
+                <div className="meta">
+                  {m.role === 'cleaned' && '🧹 Cleaned Input'}
+                  {m.role === 'ai-response' && '🤖 AI Response'}
+                  {m.role === 'assistant' && '📊 Data Collection Status'}
+                  {m.role === 'user' && '👤 You'}
+                  {m.role === 'system' && '⚙️ System'}
+                </div>
+                {m.role === 'assistant' && m.isJSON ? (
+                  <pre style={{ 
+                    background: '#f5f5f5', 
+                    padding: '12px', 
+                    borderRadius: '8px', 
+                    fontSize: '12px',
+                    overflow: 'auto',
+                    maxHeight: '300px'
+                  }}>
+                    {m.content}
+                  </pre>
+                ) : m.role === 'ai-response' ? (
+                  <div style={{
+                    background: '#e3f2fd',
+                    padding: '12px',
+                    borderRadius: '8px',
+                    borderLeft: '4px solid #2196f3',
+                    fontStyle: 'italic'
+                  }}>
+                    {m.content}
+                  </div>
+                ) : m.role === 'cleaned' ? (
+                  <div style={{
+                    background: '#fff3e0',
+                    padding: '12px',
+                    borderRadius: '8px',
+                    borderLeft: '4px solid #ff9800',
+                    fontSize: '14px'
+                  }}>
+                    {m.content}
+                  </div>
+                ) : (
+                  <div>{m.content}</div>
+                )}
               </div>
             ))}
             <div ref={listEndRef} />

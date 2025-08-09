@@ -261,6 +261,16 @@ h3 {
   background: var(--accent-mint);
 }
 
+.msg.cleaned {
+  background: #fff8e1;
+  border-left: 4px solid #ff9800;
+}
+
+.msg.ai-response {
+  background: #e8f5e8;
+  border-left: 4px solid #4caf50;
+}
+
 /* Utilities */
 .pill {
   display: inline-flex;
